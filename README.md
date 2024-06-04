@@ -1,3 +1,9 @@
+# QUIC with FEC
+
+Master project concerned with Forward Erasure Correction (FEC) for QUIC.
+
+FEC code is taken from https://github.com/francoismichel/coding-for-quic-go
+
 # A QUIC implementation in pure Go
 
 <img src="docs/quic.png" width=303 height=124>
