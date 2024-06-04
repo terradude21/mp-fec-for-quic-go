@@ -2,6 +2,9 @@ package protocol
 
 import "time"
 
+// MaxPacketSizeIPv6 is the maximum packet size that we use for sending IPv6 packets.
+const MaxPacketSizeIPv6 = 1232
+
 // DesiredReceiveBufferSize is the kernel UDP receive buffer size that we'd like to use.
 const DesiredReceiveBufferSize = (1 << 20) * 7 // 7 MB
 

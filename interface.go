@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/quic-go/quic-go/internal/fec"
 	"github.com/quic-go/quic-go/internal/handshake"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/logging"
@@ -344,6 +345,16 @@ type Config struct {
 	// Enable QUIC datagram support (RFC 9221).
 	EnableDatagrams bool
 	Tracer          func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+
+	// FECSchemeID identifies the FEC Scheme that must be used for FEC protection at the sender-size
+	FECSchemeID protocol.FECSchemeID
+	// FECSymbolSize defines the size in bytes of the FEC source and repair symbols
+	// This should be set accordingly to the kind of traffic (large value if the packets are often full)
+	// It cannot be greater than the minimum PMTU (1280 bytes)
+	// If not set (it should be), it will default to 200
+	FECSymbolSize uint16
+	// FECRedundancyController specifies the controller to use to adapt the redundancy needed to protect the symbols
+	FECRedundancyController fec.RedundancyController
 }
 
 // ClientHelloInfo contains information about an incoming connection attempt.

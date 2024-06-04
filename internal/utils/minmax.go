@@ -3,6 +3,8 @@ package utils
 import (
 	"math"
 	"time"
+
+	"github.com/quic-go/quic-go/internal/protocol"
 )
 
 // InfDuration is a duration of infinite length
@@ -33,4 +35,20 @@ func MaxTime(a, b time.Time) time.Time {
 		return a
 	}
 	return b
+}
+
+// MinByteCount returns the minimum of two ByteCounts
+func MinByteCount(a, b protocol.ByteCount) protocol.ByteCount {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// MaxByteCount returns the maximum of two ByteCounts
+func MaxByteCount(a, b protocol.ByteCount) protocol.ByteCount {
+	if a < b {
+		return b
+	}
+	return a
 }
