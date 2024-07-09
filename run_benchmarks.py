@@ -10,6 +10,7 @@ from typing import *
 import tomllib
 from operator import mul
 from functools import reduce
+from time import sleep
 
 DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True, 'v': True, 'fec': [True, False], 'trace': True}
 DEFAULT_SERVER_ARGS = {'s': True}
@@ -45,13 +46,21 @@ def run_mininet(config: FinalConfig):
 
 	popens = dict()
 	last = net.hosts[ -1 ]
-	popens[ server ] = server.popen(*config.server_args, stderr=STDOUT)
-	popens[ client ] = client.popen(*config.client_args, stderr=STDOUT)
-	info('processes started\n')
+	url = config.client_args[-1]
+	config.client_args[-1] = f"https://{server.IP()}:6121/{url}"
+	pserver = server.popen(*config.server_args, stderr=STDOUT)
+	pclient = client.popen(*config.client_args, stderr=STDOUT)
+	info(f'processes started\n{config.server_args=}\n{config.client_args=}\n')
 
-	for host, line in pmonitor( {client: popens[client]} ):
+	# for host, line in pmonitor( {client: pclient, server:pserver} ):
+	for host, line in pmonitor( {client: pclient} ):
 		if host:
 			info( "<%s>: %s" % ( host.name, line ) )
+
+	# pclient.wait()
+	sleep(1)
+	pserver.terminate()
+
 
 	net.stop()
 	info('mininet stopped\n')
@@ -83,9 +92,10 @@ def second(tup):
 
 def config_iterations(config_raw):
 	config = {k: single_to_list(v) for k,v in config_raw.items()}
-	digits = [(k, len(k)) for k, v in config.items()]
+	digits = [(k, len(v)) for k, v in config.items()]
 	maximum = reduce(mul, map(second, digits), 1)
 	for i in range(maximum):
+		info(f"{i=}, {maximum=}, {config=}\n")
 		res_conf = {}
 		index = i
 		for key, count in digits:
@@ -115,10 +125,10 @@ def generate_configs(toml_config, name):
 					# convert to string form
 					url = client_conf_instance.pop('url')
 					executable = client_conf_instance.pop('executable')
-					client_args = convert_dict_to_args(client_conf_instance, executable, f'https://10.0.0.1:6121/{url}')
+					client_args = convert_dict_to_args(client_conf_instance, executable, url)
 					executable = server_conf_instance.pop('executable')
 					server_args = convert_dict_to_args(server_conf_instance, executable)
-					yield FinalConfig(net_conf_instance, client_args, server_args, name)
+					yield FinalConfig(net_conf_instance, server_args, client_args, name)
 
 
 
