@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,9 @@ const (
 	connectionCloseFrameType    = 0x1c
 	applicationCloseFrameType   = 0x1d
 	handshakeDoneFrameType      = 0x1e
+	fecSrcFPIFrameType          = 0x21
+	fecRepairFrameType          = 0x22
+	fecRecoveredFrameType       = 0x23
 )
 
 // The FrameParser parses QUIC frames, one by one.
@@ -44,6 +48,8 @@ type FrameParser struct {
 	// To avoid allocating when parsing, keep a single ACK frame struct.
 	// It is used over and over again.
 	ackFrame *AckFrame
+
+	fecFramesParser FECFramesParser
 }
 
 // NewFrameParser creates a new frame parser.
@@ -95,6 +101,7 @@ func (p *FrameParser) parseFrame(b []byte, typ uint64, encLevel protocol.Encrypt
 	var frame Frame
 	var err error
 	var l int
+	var r bytes.Reader
 	if typ&0xf8 == 0x8 {
 		frame, l, err = parseStreamFrame(b, typ, v)
 	} else {
@@ -141,6 +148,23 @@ func (p *FrameParser) parseFrame(b []byte, typ uint64, encLevel protocol.Encrypt
 			frame, l, err = parseConnectionCloseFrame(b, typ, v)
 		case handshakeDoneFrameType:
 			frame = &HandshakeDoneFrame{}
+		case fecSrcFPIFrameType:
+			r.Reset(b)
+			frame, err = parseFECSrcFPIFrame(&r)
+		case fecRepairFrameType:
+			if p.fecFramesParser != nil {
+				r.Reset(b)
+				frame, err = p.fecFramesParser.ParseRepairFrame(&r)
+				break
+			}
+			// no fecFramesParser plugged, the frame cannot be parsed
+			fallthrough
+		case fecRecoveredFrameType:
+			if p.fecFramesParser != nil {
+				r.Reset(b)
+				frame, err = p.fecFramesParser.ParseRecoveredFrame(&r)
+				break
+			}
 		case 0x30, 0x31:
 			if p.supportsDatagrams {
 				frame, l, err = parseDatagramFrame(b, typ, v)
@@ -194,4 +218,8 @@ func replaceUnexpectedEOF(e error) error {
 		return io.EOF
 	}
 	return e
+}
+
+func (p *FrameParser) SetFECFramesParser(parser FECFramesParser) {
+	p.fecFramesParser = parser
 }
