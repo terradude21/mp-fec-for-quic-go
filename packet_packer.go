@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/rand"
 
 	"github.com/quic-go/quic-go/internal/ackhandler"
+	"github.com/quic-go/quic-go/internal/fec"
 	"github.com/quic-go/quic-go/internal/handshake"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/qerr"
@@ -25,6 +26,8 @@ type packer interface {
 	PackConnectionClose(*qerr.TransportError, protocol.ByteCount, protocol.Version) (*coalescedPacket, error)
 	PackApplicationClose(*qerr.ApplicationError, protocol.ByteCount, protocol.Version) (*coalescedPacket, error)
 	PackMTUProbePacket(ping ackhandler.Frame, size protocol.ByteCount, v protocol.Version) (shortHeaderPacket, *packetBuffer, error)
+
+	SetFECFrameworkReceiver(receiver fec.FrameworkReceiver)
 
 	SetToken([]byte)
 }
@@ -134,6 +137,11 @@ type packetPacker struct {
 	rand                rand.Rand
 
 	numNonAckElicitingAcks int
+
+	fecFrameworkSender   fec.FrameworkSender
+	fecFrameworkReceiver fec.FrameworkReceiver
+
+	version protocol.Version
 }
 
 var _ packer = &packetPacker{}
@@ -149,24 +157,34 @@ func newPacketPacker(
 	acks ackFrameSource,
 	datagramQueue *datagramQueue,
 	perspective protocol.Perspective,
+	fecFrameworkSender fec.FrameworkSender,
+	fecFrameworkReceiver fec.FrameworkReceiver,
+	version protocol.Version,
 ) *packetPacker {
 	var b [8]byte
 	_, _ = crand.Read(b[:])
 
 	return &packetPacker{
-		cryptoSetup:         cryptoSetup,
-		getDestConnID:       getDestConnID,
-		srcConnID:           srcConnID,
-		initialStream:       initialStream,
-		handshakeStream:     handshakeStream,
-		retransmissionQueue: retransmissionQueue,
-		datagramQueue:       datagramQueue,
-		perspective:         perspective,
-		framer:              framer,
-		acks:                acks,
-		rand:                *rand.New(rand.NewSource(binary.BigEndian.Uint64(b[:]))),
-		pnManager:           packetNumberManager,
+		cryptoSetup:          cryptoSetup,
+		getDestConnID:        getDestConnID,
+		srcConnID:            srcConnID,
+		initialStream:        initialStream,
+		handshakeStream:      handshakeStream,
+		retransmissionQueue:  retransmissionQueue,
+		datagramQueue:        datagramQueue,
+		perspective:          perspective,
+		framer:               framer,
+		acks:                 acks,
+		rand:                 *rand.New(rand.NewSource(binary.BigEndian.Uint64(b[:]))),
+		pnManager:            packetNumberManager,
+		fecFrameworkSender:   fecFrameworkSender,
+		fecFrameworkReceiver: fecFrameworkReceiver,
+		version:              version,
 	}
+}
+
+func (p *packetPacker) SetFECFrameworkReceiver(receiver fec.FrameworkReceiver) {
+	p.fecFrameworkReceiver = receiver
 }
 
 // PackConnectionClose packs a packet that closes the connection with a transport error.
@@ -370,6 +388,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 	var oneRTTSealer handshake.ShortHeaderSealer
 	var connID protocol.ConnectionID
 	var kp protocol.KeyPhaseBit
+	var fpidFrame *wire.FECSrcFPIFrame
 	if (onlyAck && size == 0) || (!onlyAck && size < maxPacketSize-protocol.MinCoalescedPacketSize) {
 		var err error
 		oneRTTSealer, err = p.cryptoSetup.Get1RTTSealer()
@@ -381,7 +400,49 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			connID = p.getDestConnID()
 			oneRTTPacketNumber, oneRTTPacketNumberLen = p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 			hdrLen := wire.ShortHeaderLen(connID, oneRTTPacketNumberLen)
+
+			if p.fecFrameworkSender != nil {
+				fpidFrame = &wire.FECSrcFPIFrame{
+					SourceFECPayloadID: p.fecFrameworkSender.GetNextFPID(),
+				}
+				size += fpidFrame.Length(p.version)
+			}
+
 			oneRTTPayload = p.maybeGetShortHeaderPacket(oneRTTSealer, hdrLen, maxPacketSize-size, onlyAck, size == 0, v)
+
+			if p.fecFrameworkSender != nil && fpidFrame != nil {
+				framesToProtect := make([]wire.Frame, 0, len(oneRTTPayload.frames)+1)
+				for _, f := range oneRTTPayload.frames {
+					framesToProtect = append(framesToProtect, f.Frame)
+				}
+				payloadToProtect, err := fec.PreparePayloadForEncoding(oneRTTPacketNumber, framesToProtect, p.fecFrameworkSender, p.version)
+				if err != nil {
+					return nil, err
+				}
+				// only protect if there are bytes to protect
+				if len(payloadToProtect.Bytes()) != 0 {
+					id, err := p.fecFrameworkSender.ProtectPayload(oneRTTPacketNumber, payloadToProtect)
+					if err != nil {
+						return nil, err
+					}
+					if id != fpidFrame.SourceFECPayloadID {
+						panic(fmt.Sprintf("wrong id: %+v vs %+v", id, fpidFrame.SourceFECPayloadID))
+					}
+					// add the id to the packet: we have the remaining space, as we decreased maxSize for this. We add it to the
+					// beginning of the packet to avoid interferences with stream frames without length
+					// currently not very efficient
+					newWireFrames := make([]wire.Frame, 0, len(oneRTTPayload.frames)+1)
+					newWireFrames = append(newWireFrames, fpidFrame)
+					oneRTTPayload.length += fpidFrame.Length(p.version)
+					newWireFrames = append(newWireFrames, framesToProtect...)
+					newFrames := make([]ackhandler.Frame, 0, len(oneRTTPayload.frames)+1)
+					for i, f := range newWireFrames {
+						newFrames = append(newFrames, ackhandler.Frame{Frame: f, Handler: oneRTTPayload.frames[i].Handler})
+					}
+					oneRTTPayload.frames = newFrames
+				}
+			}
+
 			if oneRTTPayload.length > 0 {
 				size += p.shortHeaderPacketLength(connID, oneRTTPacketNumberLen, oneRTTPayload) + protocol.ByteCount(oneRTTSealer.Overhead())
 			}
@@ -635,6 +696,28 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			}
 			pl.frames = append(pl.frames, ackhandler.Frame{Frame: f, Handler: p.retransmissionQueue.AppDataAckHandler()})
 			pl.length += f.Length(v)
+		}
+	}
+
+	if p.fecFrameworkSender != nil {
+		rf, err := p.fecFrameworkSender.GetRepairFrame(maxFrameSize)
+		if err != nil {
+			return pl
+		}
+		if rf != nil {
+			pl.frames = append(pl.frames, ackhandler.Frame{Frame: rf})
+			pl.length += rf.Length(p.version)
+		}
+	}
+
+	if p.fecFrameworkReceiver != nil {
+		recoveredFrame, err := p.fecFrameworkReceiver.GetRecoveredFrame(maxFrameSize - pl.length)
+		if err != nil {
+			return pl
+		}
+		if recoveredFrame != nil {
+			pl.frames = append(pl.frames, ackhandler.Frame{Frame: recoveredFrame})
+			pl.length += recoveredFrame.Length(p.version)
 		}
 	}
 

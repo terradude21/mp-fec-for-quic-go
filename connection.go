@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go/internal/ackhandler"
+	"github.com/quic-go/quic-go/internal/fec"
+	fec_utils "github.com/quic-go/quic-go/internal/fec/utils"
 	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"github.com/quic-go/quic-go/internal/handshake"
 	"github.com/quic-go/quic-go/internal/logutils"
@@ -212,6 +214,11 @@ type connection struct {
 	logID  string
 	tracer *logging.ConnectionTracer
 	logger utils.Logger
+
+	senderFECFrameParser   wire.FECFramesParser
+	fecFrameworkSender     fec.FrameworkSender
+	receiverFECFrameParser wire.FECFramesParser
+	fecFrameworkReceiver   fec.FrameworkReceiver
 }
 
 var (
@@ -250,6 +257,15 @@ var newConnection = func(
 		tracer:              tracer,
 		logger:              logger,
 		version:             v,
+	}
+	var err error
+	s.fecFrameworkSender, s.senderFECFrameParser, err = fec_utils.CreateFrameworkSenderFromFECSchemeID(conf.FECSchemeID, conf.FECRedundancyController, protocol.ByteCount(conf.FECSymbolSize))
+	if err != nil {
+		return nil
+	}
+	s.fecFrameworkReceiver, s.receiverFECFrameParser, err = fec_utils.CreateFrameworkReceiverFromFECSchemeID(conf.FECSchemeID, protocol.ByteCount(conf.FECSymbolSize))
+	if err != nil {
+		return nil
 	}
 	if origDestConnID.Len() > 0 {
 		s.logID = origDestConnID.String()
@@ -330,7 +346,7 @@ var newConnection = func(
 		s.version,
 	)
 	s.cryptoStreamHandler = cs
-	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, s.initialStream, s.handshakeStream, s.sentPacketHandler, s.retransmissionQueue, cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
+	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, s.initialStream, s.handshakeStream, s.sentPacketHandler, s.retransmissionQueue, cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective, s.fecFrameworkSender, s.fecFrameworkReceiver, s.version)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, s.initialStream, s.handshakeStream, s.oneRTTStream)
 	return s
@@ -365,6 +381,15 @@ var newClientConnection = func(
 		tracer:              tracer,
 		versionNegotiated:   hasNegotiatedVersion,
 		version:             v,
+	}
+	var err error
+	s.fecFrameworkSender, s.senderFECFrameParser, err = fec_utils.CreateFrameworkSenderFromFECSchemeID(conf.FECSchemeID, conf.FECRedundancyController, protocol.ByteCount(conf.FECSymbolSize))
+	if err != nil {
+		return nil
+	}
+	s.fecFrameworkReceiver, s.receiverFECFrameParser, err = fec_utils.CreateFrameworkReceiverFromFECSchemeID(conf.FECSchemeID, protocol.ByteCount(conf.FECSymbolSize))
+	if err != nil {
+		return nil
 	}
 	s.connIDManager = newConnIDManager(
 		destConnID,
@@ -438,7 +463,7 @@ var newClientConnection = func(
 	s.cryptoStreamHandler = cs
 	s.cryptoStreamManager = newCryptoStreamManager(cs, s.initialStream, s.handshakeStream, oneRTTStream)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
-	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, s.initialStream, s.handshakeStream, s.sentPacketHandler, s.retransmissionQueue, cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
+	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, s.initialStream, s.handshakeStream, s.sentPacketHandler, s.retransmissionQueue, cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective, s.fecFrameworkSender, s.fecFrameworkReceiver, s.version)
 	if len(tlsConf.ServerName) > 0 {
 		s.tokenStoreKey = tlsConf.ServerName
 	} else {
