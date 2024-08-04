@@ -1365,6 +1365,19 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 		err = s.handleHandshakeDoneFrame()
 	case *wire.DatagramFrame:
 		err = s.handleDatagramFrame(frame)
+	case *wire.FECSrcFPIFrame:
+	case *wire.RepairFrame:
+		if s.fecFrameworkReceiver != nil {
+			err = s.fecFrameworkReceiver.HandleRepairFrame(frame)
+		}
+	case *wire.RecoveredFrame:
+		if s.fecFrameworkSender != nil {
+			pns, err := s.fecFrameworkSender.HandleRecoveredFrame(frame)
+			if err == nil {
+				s.logger.Debugf("packets have been recovered: %+v", pns)
+				// err = s.sentPacketHandler.PacketRecovered(pns)
+			}
+		}
 	default:
 		err = fmt.Errorf("unexpected frame type: %s", reflect.ValueOf(&frame).Elem().Type().Name())
 	}

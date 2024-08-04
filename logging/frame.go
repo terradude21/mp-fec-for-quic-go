@@ -44,6 +44,10 @@ type (
 	StreamsBlockedFrame = wire.StreamsBlockedFrame
 	// A StreamDataBlockedFrame is a STREAM_DATA_BLOCKED frame.
 	StreamDataBlockedFrame = wire.StreamDataBlockedFrame
+	// FEC frames
+	FECSrcFPIFrame    = wire.FECSrcFPIFrame
+	FECRepairFrame    = wire.RepairFrame
+	FECRecoveredFrame = wire.RecoveredFrame
 )
 
 // A CryptoFrame is a CRYPTO frame.
