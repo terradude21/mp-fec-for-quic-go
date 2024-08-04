@@ -347,6 +347,7 @@ func (p *packetPacker) initialPaddingLen(frames []ackhandler.Frame, currentSize,
 // It packs an Initial / Handshake if there is data to send in these packet number spaces.
 // It should only be called before the handshake is confirmed.
 func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.ByteCount, v protocol.Version) (*coalescedPacket, error) {
+  fmt.Println("PACKCOALESCEDPACKET HAS BEEN CALLED")
 	var (
 		initialHdr, handshakeHdr, zeroRTTHdr                            *wire.ExtendedHeader
 		initialPayload, handshakePayload, zeroRTTPayload, oneRTTPayload payload
@@ -401,7 +402,9 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			oneRTTPacketNumber, oneRTTPacketNumberLen = p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 			hdrLen := wire.ShortHeaderLen(connID, oneRTTPacketNumberLen)
 
+      fmt.Println("WE ARE ABOUT TO DO FEC STUFF")
 			if p.fecFrameworkSender != nil {
+			  fmt.Println("WE ARE DOING FEC STUFF")
 				fpidFrame = &wire.FECSrcFPIFrame{
 					SourceFECPayloadID: p.fecFrameworkSender.GetNextFPID(),
 				}
@@ -437,7 +440,11 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 					newWireFrames = append(newWireFrames, framesToProtect...)
 					newFrames := make([]ackhandler.Frame, 0, len(oneRTTPayload.frames)+1)
 					for i, f := range newWireFrames {
-						newFrames = append(newFrames, ackhandler.Frame{Frame: f, Handler: oneRTTPayload.frames[i].Handler})
+					  if i == 0 {
+					    newFrames = append(newFrames, ackhandler.Frame{Frame: f})
+					  } else {
+						  newFrames = append(newFrames, ackhandler.Frame{Frame: f, Handler: oneRTTPayload.frames[i-1].Handler})
+						}
 					}
 					oneRTTPayload.frames = newFrames
 				}

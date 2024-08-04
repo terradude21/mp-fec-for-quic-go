@@ -309,6 +309,7 @@ func (s *Server) serveConn(tlsConf *tls.Config, conn net.PacketConn) error {
 		if addr == "" {
 			addr = ":https"
 		}
+		fmt.Printf("SCHEME ID IS %d\n", quicConf.FECSchemeID)
 		ln, err = quicListenAddr(addr, baseConf, quicConf)
 	} else {
 		ln, err = quicListen(conn, baseConf, quicConf)

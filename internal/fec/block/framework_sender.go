@@ -58,6 +58,7 @@ func (f *BlockFrameworkSender) protectSourceSymbol(symbol *BlockSourceSymbol) (r
 
 // returns the ID of the first symbol in the payload
 func (f *BlockFrameworkSender) ProtectPayload(pn protocol.PacketNumber, payload fec.PreProcessedPayload) (retval protocol.SourceFECPayloadID, err error) {
+	fmt.Println("PROTECTPAYLOAD HAS BEEN CALLED")
 	if payload == nil || len(payload.Bytes()) == 0 {
 		return retval, fmt.Errorf("asked to protect an empty payload")
 	}

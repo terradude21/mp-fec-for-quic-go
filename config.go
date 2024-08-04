@@ -124,5 +124,8 @@ func populateConfig(config *Config) *Config {
 		DisablePathMTUDiscovery:        config.DisablePathMTUDiscovery,
 		Allow0RTT:                      config.Allow0RTT,
 		Tracer:                         config.Tracer,
+		FECSchemeID:                    config.FECSchemeID,
+		FECSymbolSize:                  config.FECSymbolSize,
+		FECRedundancyController:        config.FECRedundancyController,
 	}
 }
