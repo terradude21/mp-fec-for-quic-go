@@ -260,6 +260,7 @@ var newConnection = func(
 	}
 	var err error
 	s.fecFrameworkSender, s.senderFECFrameParser, err = fec_utils.CreateFrameworkSenderFromFECSchemeID(conf.FECSchemeID, conf.FECRedundancyController, protocol.ByteCount(conf.FECSymbolSize))
+	fmt.Printf("THIS IS FECFRAMEWORKSENDER IN SERVER %v\n", s.fecFrameworkSender)
 	if err != nil {
 		return nil
 	}
@@ -385,7 +386,9 @@ var newClientConnection = func(
 	}
 	var err error
 	s.fecFrameworkSender, s.senderFECFrameParser, err = fec_utils.CreateFrameworkSenderFromFECSchemeID(conf.FECSchemeID, conf.FECRedundancyController, protocol.ByteCount(conf.FECSymbolSize))
+	fmt.Printf("THIS IS FECFRAMEWORKSENDER IN CLIENT %v\n", s.fecFrameworkSender)
 	if err != nil {
+	  fmt.Printf("%s", err.Error())
 		return nil
 	}
 	s.fecFrameworkReceiver, s.receiverFECFrameParser, err = fec_utils.CreateFrameworkReceiverFromFECSchemeID(conf.FECSchemeID, protocol.ByteCount(conf.FECSymbolSize))

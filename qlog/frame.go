@@ -59,6 +59,10 @@ func (f frame) MarshalJSONObject(enc *gojay.Encoder) {
 		marshalHandshakeDoneFrame(enc, frame)
 	case *logging.DatagramFrame:
 		marshalDatagramFrame(enc, frame)
+	// TODO: FEC qlog events
+	case *logging.FECSrcFPIFrame:
+	case *logging.FECRepairFrame:
+	case *logging.FECRecoveredFrame:
 	default:
 		panic("unknown frame type")
 	}

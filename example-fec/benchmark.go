@@ -373,6 +373,7 @@ func main() {
 		case "xor":
 			quicConf.FECSchemeID = protocol.XORFECScheme
 		case "rs":
+		  fmt.Println("FEC SCHEME IS RS")
 			quicConf.FECSchemeID = protocol.ReedSolomonFECScheme
 		}
 	}

@@ -13,10 +13,12 @@ import (
 func CreateFrameworkSenderFromFECSchemeID(id protocol.FECSchemeID, controller fec.RedundancyController, symbolSize protocol.ByteCount) (fec.FrameworkSender, wire.FECFramesParser, error) {
 	switch {
 	case IsBlockFECScheme(id):
+	  fmt.Println("FEC IS GETTING SET UP 1")
 		fecScheme, err := GetBlockFECScheme(id)
 		if err != nil {
 			return nil, nil, err
 		}
+		fmt.Println("FEC IS GETTING SET UP 2")
 		if controller == nil {
 			controller = block.NewDefaultRedundancyController()
 		}
@@ -28,6 +30,7 @@ func CreateFrameworkSenderFromFECSchemeID(id protocol.FECSchemeID, controller fe
 			return sender, rfp, err
 		}
 	case id == protocol.FECDisabled:
+	  fmt.Println("FEC IS DISABLED")
 		return nil, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("invalid sender FECSchemeID: %d", id)

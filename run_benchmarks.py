@@ -12,7 +12,7 @@ from operator import mul
 from functools import reduce
 from time import sleep
 
-DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True, 'v': True, 'fec': [True, False], 'trace': True}
+DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True, 'v': True, 'fec': [True, False], 'fecScheme': 'rs', 'trace': True}
 DEFAULT_SERVER_ARGS = {'s': True}
 DEFAULT_CLIENT_ARGS = {}
 
@@ -75,7 +75,8 @@ def convert_dict_to_args(data, pre=None, post=None):
 		if val == True:
 			args.append(f'-{flag}')
 		else:
-			args.append(f'-{flag} {val}')
+			args.append(f'-{flag}')
+			args.append(f'{val}')
 	if post is not None:
 		args.append(post)
 	return args
