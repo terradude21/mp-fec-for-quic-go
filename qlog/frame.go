@@ -3,6 +3,7 @@ package qlog
 import (
 	"fmt"
 
+	"github.com/quic-go/quic-go/internal/utils"
 	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
 
@@ -59,10 +60,12 @@ func (f frame) MarshalJSONObject(enc *gojay.Encoder) {
 		marshalHandshakeDoneFrame(enc, frame)
 	case *logging.DatagramFrame:
 		marshalDatagramFrame(enc, frame)
-	// TODO: FEC qlog events
 	case *logging.FECSrcFPIFrame:
+		marshalFECSrcFPIFrame(enc, frame)
 	case *logging.FECRepairFrame:
+		marshalFECRepairFrame(enc, frame)
 	case *logging.FECRecoveredFrame:
+		marshalFECRecoveredFrame(enc, frame)
 	default:
 		panic("unknown frame type")
 	}
@@ -228,4 +231,20 @@ func marshalHandshakeDoneFrame(enc *gojay.Encoder, _ *logging.HandshakeDoneFrame
 func marshalDatagramFrame(enc *gojay.Encoder, f *logging.DatagramFrame) {
 	enc.StringKey("frame_type", "datagram")
 	enc.Int64Key("length", int64(f.Length))
+}
+
+func marshalFECSrcFPIFrame(enc *gojay.Encoder, f *logging.FECSrcFPIFrame) {
+	enc.StringKey("frame_type", "fec_src_fpi")
+	enc.Uint32Key("source_fec_payload_id", utils.BigEndian.Uint32(f.SourceFECPayloadID[:]))
+}
+
+func marshalFECRepairFrame(enc *gojay.Encoder, f *logging.FECRepairFrame) {
+	enc.StringKey("frame_type", "fec_repair")
+	enc.StringKey("metadata", fmt.Sprintf("%x", f.Metadata[:]))
+	enc.StringKey("repair_symbols", fmt.Sprintf("%x", f.RepairSymbols[:]))
+}
+
+func marshalFECRecoveredFrame(enc *gojay.Encoder, f *logging.FECRecoveredFrame) {
+	enc.StringKey("frame_type", "fec_recovered")
+	enc.StringKey("data", fmt.Sprintf("%x", f.Data[:]))
 }
