@@ -7,6 +7,7 @@ import (
 	"github.com/quic-go/quic-go/internal/fec"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/quic-go/quic-go/logging"
 )
 
 // TODO: E should be > 2
@@ -21,11 +22,16 @@ type BlockFrameworkSender struct {
 	nSourceSymbolsSinceLastRepair   int
 
 	BlocksToSend []*FECBlock
+
+	tracer *logging.ConnectionTracer
 }
 
-func NewBlockFrameworkSender(fecScheme BlockFECScheme, redundancyController RedundancyController, repairFrameParser FECFramesParser, E protocol.ByteCount) (*BlockFrameworkSender, error) {
+func NewBlockFrameworkSender(fecScheme BlockFECScheme, redundancyController RedundancyController, repairFrameParser FECFramesParser, E protocol.ByteCount, tracer *logging.ConnectionTracer) (*BlockFrameworkSender, error) {
 	if E >= protocol.MAX_FEC_SYMBOL_SIZE {
 		return nil, fmt.Errorf("framework sender symbol size too big: %d > %d", E, protocol.MAX_FEC_SYMBOL_SIZE)
+	}
+	if E <= 2 {
+		return nil, fmt.Errorf("framework sender symbol size too small: %d <= 2", E)
 	}
 	return &BlockFrameworkSender{
 		fecScheme:            fecScheme,
@@ -33,6 +39,7 @@ func NewBlockFrameworkSender(fecScheme BlockFECScheme, redundancyController Redu
 		fecFramesParser:      repairFrameParser,
 		currentBlock:         NewFECBlock(0),
 		e:                    E,
+		tracer:               tracer,
 	}, nil
 }
 
@@ -76,17 +83,22 @@ func (f *BlockFrameworkSender) ProtectPayload(pn protocol.PacketNumber, payload 
 
 	f.protectedPacketsSinceLastRepair = append(f.protectedPacketsSinceLastRepair, len(symbols))
 	f.nSourceSymbolsSinceLastRepair += len(symbols)
-	if f.redundancyController.ShouldSend(len(f.protectedPacketsSinceLastRepair)) {
+	// if f.redundancyController.ShouldSend(len(f.protectedPacketsSinceLastRepair)) {
+	if true {
 		err := f.GenerateRepairSymbols(f.currentBlock, f.redundancyController.GetNumberOfRepairSymbols(f.nSourceSymbolsSinceLastRepair))
 		if err != nil {
 			return retval, err
 		}
 		f.sendCurrentBlock()
+	} else {
+		fmt.Println("not sending yet")
 	}
 	return retval, nil
 }
 
 func (f *BlockFrameworkSender) sendCurrentBlock() {
+	fmt.Println("!!! sending current block !!!")
+	f.tracer.Debug("fec", "block sent")
 	f.currentBlock.TotalNumberOfSourceSymbols = uint64(len(f.currentBlock.SourceSymbols))
 	f.currentBlock.TotalNumberOfRepairSymbols = uint64(len(f.currentBlock.RepairSymbols))
 	f.BlocksToSend = append(f.BlocksToSend, f.currentBlock)

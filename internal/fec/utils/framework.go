@@ -8,12 +8,13 @@ import (
 	"github.com/quic-go/quic-go/internal/fec/block/fec_schemes"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/quic-go/quic-go/logging"
 )
 
-func CreateFrameworkSenderFromFECSchemeID(id protocol.FECSchemeID, controller fec.RedundancyController, symbolSize protocol.ByteCount) (fec.FrameworkSender, wire.FECFramesParser, error) {
+func CreateFrameworkSenderFromFECSchemeID(id protocol.FECSchemeID, controller fec.RedundancyController, symbolSize protocol.ByteCount, tracer *logging.ConnectionTracer) (fec.FrameworkSender, wire.FECFramesParser, error) {
 	switch {
 	case IsBlockFECScheme(id):
-	  fmt.Println("FEC IS GETTING SET UP 1")
+		fmt.Println("FEC IS GETTING SET UP 1")
 		fecScheme, err := GetBlockFECScheme(id)
 		if err != nil {
 			return nil, nil, err
@@ -26,11 +27,11 @@ func CreateFrameworkSenderFromFECSchemeID(id protocol.FECSchemeID, controller fe
 			return nil, nil, fmt.Errorf("wrong redundancy controller: expected a BlockRedundancyController")
 		} else {
 			rfp := block.NewFECFramesParser(symbolSize)
-			sender, err := block.NewBlockFrameworkSender(fecScheme, blockController, rfp, symbolSize)
+			sender, err := block.NewBlockFrameworkSender(fecScheme, blockController, rfp, symbolSize, tracer)
 			return sender, rfp, err
 		}
 	case id == protocol.FECDisabled:
-	  fmt.Println("FEC IS DISABLED")
+		fmt.Println("FEC IS DISABLED")
 		return nil, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("invalid sender FECSchemeID: %d", id)

@@ -47,6 +47,7 @@ const (
 	categoryTransport
 	categorySecurity
 	categoryRecovery
+	categoryFEC
 )
 
 func (c category) String() string {
@@ -59,6 +60,8 @@ func (c category) String() string {
 		return "security"
 	case categoryRecovery:
 		return "recovery"
+	case categoryFEC:
+		return "fec"
 	default:
 		return "unknown category"
 	}

@@ -594,3 +594,17 @@ func (e eventALPNInformation) IsNil() bool        { return false }
 func (e eventALPNInformation) MarshalJSONObject(enc *gojay.Encoder) {
 	enc.StringKey("chosen_alpn", e.chosenALPN)
 }
+
+type eventFECBlockSent struct {
+	sourceSymbols uint64
+	repairSymbols uint64
+}
+
+func (e eventFECBlockSent) Category() category { return categoryFEC }
+func (e eventFECBlockSent) Name() string       { return "fec_block_sent" }
+func (e eventFECBlockSent) IsNil() bool        { return false }
+
+func (e eventFECBlockSent) MarshalJSONObject(enc *gojay.Encoder) {
+	enc.Uint64Key("source_symbols", e.sourceSymbols)
+	enc.Uint64Key("repair_symbols", e.repairSymbols)
+}

@@ -370,11 +370,13 @@ func main() {
 	}
 	if *fec {
 		switch *fecScheme {
-		case "xor":
+		case "xor", "":
 			quicConf.FECSchemeID = protocol.XORFECScheme
 		case "rs":
-		  fmt.Println("FEC SCHEME IS RS")
+			fmt.Println("FEC SCHEME IS RS")
 			quicConf.FECSchemeID = protocol.ReedSolomonFECScheme
+		default:
+			fmt.Println("Unknown FEC scheme!")
 		}
 	}
 

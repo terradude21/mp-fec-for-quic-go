@@ -125,7 +125,7 @@ func populateConfig(config *Config) *Config {
 		Allow0RTT:                      config.Allow0RTT,
 		Tracer:                         config.Tracer,
 		FECSchemeID:                    config.FECSchemeID,
-		FECSymbolSize:                  config.FECSymbolSize,
+		FECSymbolSize:                  200, //config.FECSymbolSize, // hacked in here, TODO: properly
 		FECRedundancyController:        config.FECRedundancyController,
 	}
 }
