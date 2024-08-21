@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/quic-go/quic-go/internal/fec"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/utils"
 	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const MAX_BLOCK_OFFSET = 0xFF
@@ -91,7 +91,7 @@ func ParseBlockSourceID(r *bytes.Reader) (BlockSourceID, error) {
 	if err != nil {
 		return BlockSourceID{0, 0}, err
 	}
-	offset, err := utils.BigEndian.ReadUint16(r)
+	offset, err := r.ReadByte()
 	if err != nil {
 		return BlockSourceID{0, 0}, err
 	}
@@ -286,104 +286,95 @@ func NewFECFramesParser(E protocol.ByteCount) FECFramesParser {
 	return &fecFramesParserI{e: E}
 }
 
-func (p *fecFramesParserI) ParseRepairFrame(r *bytes.Reader) (*wire.RepairFrame, error) {
+func (p *fecFramesParserI) ParseRepairFrame(b []byte) (*wire.RepairFrame, int, error) {
 	// type byte
-	_, err := r.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-	offset, err := r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
+	// _, err := r.ReadByte()
+	// if err != nil {
+	// return nil, err
+	// }
+
+	// offset, err := r.Seek(0, io.SeekCurrent)
+	// fmt.Printf("offset: %d", offset)
+	// if err != nil {
+	//	return nil, 0, err
+	// }
+
+	bsave := b
+	startLen := len(b)
+
 	// browse all the metadata
 	// nss
-	_, err = utils.ReadVarInt(r)
+	_, l, err := quicvarint.Parse(b)
+	b = b[l:]
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// nrs
-	_, err = utils.ReadVarInt(r)
+	_, l, err = quicvarint.Parse(b)
+	b = b[l:]
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// Block repair id
 	var id [8]byte
-	_, err = r.Read(id[:])
-	if err != nil {
-		return nil, err
-	}
+	copy(id[:], b)
+	b = b[len(id):]
+
 	// nSymbols
-	nSymbols, err := utils.ReadVarInt(r)
+	nSymbols, l, err := quicvarint.Parse(b)
+	b = b[l:]
+	fmt.Printf("Number of symbols: %d", nSymbols)
 	if err != nil {
-		return nil, err
-	}
-	offsetRS, err := r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
-	_, err = r.Seek(offset, io.SeekStart)
-	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	metadataSize := offsetRS - offset
+	metadataSize := startLen - len(b)
+	fmt.Printf("metadata size: %d", metadataSize)
+	rsSize := protocol.ByteCount(nSymbols) * p.e
 
 	frame := &wire.RepairFrame{
 		Metadata:      make([]byte, metadataSize),
-		RepairSymbols: make([]byte, protocol.ByteCount(nSymbols)*p.e),
+		RepairSymbols: make([]byte, rsSize),
 	}
-	_, err = r.Read(frame.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	_, err = r.Read(frame.RepairSymbols)
-	if err != nil {
-		return nil, err
-	}
-	return frame, nil
+	copy(frame.Metadata, bsave[:metadataSize])
+	copy(frame.RepairSymbols, bsave[metadataSize:])
+
+	return frame, metadataSize + int(rsSize), nil
 }
 
 // Ultra simple, non-optimized recovered frame
-func (p *fecFramesParserI) ParseRecoveredFrame(r *bytes.Reader) (*wire.RecoveredFrame, error) {
+func (p *fecFramesParserI) ParseRecoveredFrame(b []byte) (*wire.RecoveredFrame, int, error) {
 	// this function does not process the payload yet, but reads it in order to know its size
 	// type byte
-	_, err := r.ReadByte()
+	// _, err := r.ReadByte()
+	// if err != nil {
+	//	return nil, err
+	// }
+
+	bsave := b
+	startLen := len(b)
+
+	nRecovered, l, err := quicvarint.Parse(b)
+	b = b[l:]
 	if err != nil {
-		return nil, err
-	}
-	payloadStartOffset, err := r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
-	nRecovered, err := utils.ReadVarInt(r)
-	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := 0; i < int(nRecovered); i++ {
-		_, err := utils.ReadVarInt(r)
+		_, l, err = quicvarint.Parse(b)
+		b = b[l:]
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	payloadEndOffset, err := r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
-	payloadLength := payloadEndOffset - payloadStartOffset
+
+	payloadLength := startLen - len(b)
 	framePayload := make([]byte, payloadLength)
 
-	_, err = r.Seek(payloadStartOffset, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-	_, err = r.Read(framePayload)
-	if err != nil {
-		return nil, err
-	}
+	copy(framePayload, bsave[:payloadLength])
+
 	return &wire.RecoveredFrame{
 		Data: framePayload,
-	}, nil
+	}, payloadLength, nil
 }
 
 func (p *fecFramesParserI) getRepairFrameMetadata(f *wire.RepairFrame) (nss uint64, nrs uint64, id BlockRepairID, nSymbols uint64, err error) {
@@ -391,24 +382,29 @@ func (p *fecFramesParserI) getRepairFrameMetadata(f *wire.RepairFrame) (nss uint
 	// browse all the metadata
 	nss, err = utils.ReadVarInt(r)
 	if err != nil {
+		fmt.Printf("nss: %v\n", err)
 		return
 	}
 	nrs, err = utils.ReadVarInt(r)
 	if err != nil {
+		fmt.Printf("nrs: %v\n", err)
 		return
 	}
 	// Block repair id FEC Scheme-specific
 	_, err = r.Read(id.FECSchemeSpecific[:])
 	if err != nil {
+		fmt.Printf("specific: %v\n", err)
 		return
 	}
 	id.BlockSourceID, err = ParseBlockSourceID(r)
 	if err != nil {
+		fmt.Printf("id: %v\n", err)
 		return
 	}
 	// nSymbols
 	nSymbols, err = utils.ReadVarInt(r)
 	if err != nil {
+		fmt.Printf("nsymbols: %v\n", err)
 		return
 	}
 	if protocol.ByteCount(len(f.RepairSymbols))%p.e != 0 {

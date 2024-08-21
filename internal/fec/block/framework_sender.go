@@ -98,7 +98,7 @@ func (f *BlockFrameworkSender) ProtectPayload(pn protocol.PacketNumber, payload 
 
 func (f *BlockFrameworkSender) sendCurrentBlock() {
 	fmt.Println("!!! sending current block !!!")
-	f.tracer.Debug("fec", "block sent")
+	// f.tracer.Debug("fec", "block sent")
 	f.currentBlock.TotalNumberOfSourceSymbols = uint64(len(f.currentBlock.SourceSymbols))
 	f.currentBlock.TotalNumberOfRepairSymbols = uint64(len(f.currentBlock.RepairSymbols))
 	f.BlocksToSend = append(f.BlocksToSend, f.currentBlock)

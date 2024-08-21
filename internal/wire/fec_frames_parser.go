@@ -1,10 +1,6 @@
 package wire
 
-import (
-	"bytes"
-)
-
 type FECFramesParser interface {
-	ParseRecoveredFrame(r *bytes.Reader) (*RecoveredFrame, error)
-	ParseRepairFrame(r *bytes.Reader) (*RepairFrame, error)
+	ParseRecoveredFrame(b []byte) (*RecoveredFrame, int, error)
+	ParseRepairFrame(b []byte) (*RepairFrame, int, error)
 }

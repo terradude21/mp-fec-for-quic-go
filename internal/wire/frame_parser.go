@@ -1,7 +1,6 @@
 package wire
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -68,10 +67,13 @@ func (p *FrameParser) ParseNext(data []byte, encLevel protocol.EncryptionLevel, 
 }
 
 func (p *FrameParser) parseNext(b []byte, encLevel protocol.EncryptionLevel, v protocol.Version) (Frame, int, error) {
+	fmt.Println("PARSENEXT WAS CALLED")
 	var parsed int
 	for len(b) != 0 {
 		typ, l, err := quicvarint.Parse(b)
+		// fmt.Printf("length: %d\n", l)
 		parsed += l
+		// fmt.Println(err)
 		if err != nil {
 			return nil, parsed, &qerr.TransportError{
 				ErrorCode:    qerr.FrameEncodingError,
@@ -83,17 +85,22 @@ func (p *FrameParser) parseNext(b []byte, encLevel protocol.EncryptionLevel, v p
 			continue
 		}
 
+		fmt.Println(typ)
 		f, l, err := p.parseFrame(b, typ, encLevel, v)
 		parsed += l
 		if err != nil {
+			fmt.Println(err)
 			return nil, parsed, &qerr.TransportError{
 				FrameType:    typ,
 				ErrorCode:    qerr.FrameEncodingError,
 				ErrorMessage: err.Error(),
 			}
 		}
+		fmt.Printf("LINE 98, %d\n", parsed)
+		fmt.Println(f)
 		return f, parsed, nil
 	}
+	// fmt.Println("LINE 101, %d", parsed)
 	return nil, parsed, nil
 }
 
@@ -101,7 +108,6 @@ func (p *FrameParser) parseFrame(b []byte, typ uint64, encLevel protocol.Encrypt
 	var frame Frame
 	var err error
 	var l int
-	var r bytes.Reader
 	if typ&0xf8 == 0x8 {
 		frame, l, err = parseStreamFrame(b, typ, v)
 	} else {
@@ -149,20 +155,21 @@ func (p *FrameParser) parseFrame(b []byte, typ uint64, encLevel protocol.Encrypt
 		case handshakeDoneFrameType:
 			frame = &HandshakeDoneFrame{}
 		case fecSrcFPIFrameType:
-			r.Reset(b)
-			frame, err = parseFECSrcFPIFrame(&r)
+			frame, l, err = parseFECSrcFPIFrame(b)
 		case fecRepairFrameType:
+			fmt.Println("CASE REPAIRFRAME")
 			if p.fecFramesParser != nil {
-				r.Reset(b)
-				frame, err = p.fecFramesParser.ParseRepairFrame(&r)
+				fmt.Println("INSIDE IF STATEMENT")
+				frame, l, err = p.fecFramesParser.ParseRepairFrame(b)
+				fmt.Println(frame)
+				fmt.Println(err)
 				break
 			}
 			// no fecFramesParser plugged, the frame cannot be parsed
 			fallthrough
 		case fecRecoveredFrameType:
 			if p.fecFramesParser != nil {
-				r.Reset(b)
-				frame, err = p.fecFramesParser.ParseRecoveredFrame(&r)
+				frame, l, err = p.fecFramesParser.ParseRecoveredFrame(b)
 				break
 			}
 		case 0x30, 0x31:

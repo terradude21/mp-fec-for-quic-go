@@ -1,7 +1,7 @@
 package wire
 
 import (
-	"bytes"
+	// "bytes"
 
 	"github.com/quic-go/quic-go/internal/protocol"
 )
@@ -13,17 +13,14 @@ type FECSrcFPIFrame struct {
 	protocol.SourceFECPayloadID
 }
 
-func parseFECSrcFPIFrame(r *bytes.Reader) (*FECSrcFPIFrame, error) {
-	if _, err := r.ReadByte(); err != nil {
-		return nil, err
-	}
+func parseFECSrcFPIFrame(b []byte) (*FECSrcFPIFrame, int, error) {
+	// if _, err := r.ReadByte(); err != nil {
+	// 	return nil, 0, err
+	// }
 
 	frame := &FECSrcFPIFrame{}
-	if _, err := r.Read(frame.SourceFECPayloadID[:]); err != nil {
-		return nil, err
-	} else {
-		return frame, nil
-	}
+	l := copy(frame.SourceFECPayloadID[:], b)
+	return frame, l, nil
 }
 
 func (f *FECSrcFPIFrame) Append(b []byte, version protocol.Version) ([]byte, error) {
