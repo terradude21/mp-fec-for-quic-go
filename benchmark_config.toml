@@ -1,10 +1,10 @@
 [testcase1]
 [testcase1.net]
 loss = [0, 20]
-delay = 4
-bandwidth = 1
+delay = [50, 500]
+bandwidth = 10
 [testcase1.common]
-fec = [false, true]
+fec = [true, false]
 [testcase1.server]
 [testcase1.client]
-url = ["/demo/blob?size=1000", "/demo/blob?size=10000"]
+url = "/demo/blob?size=10000"

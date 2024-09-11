@@ -16,6 +16,10 @@ DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True,
 DEFAULT_SERVER_ARGS = {'s': True}
 DEFAULT_CLIENT_ARGS = {}
 
+TEST_ITERATIONS = 5
+
+index_file = 'index.txt'
+
 @dataclass
 class NetConfig:
 	loss: int
@@ -29,7 +33,7 @@ class FinalConfig:
 	client_args: List[str]
 	testcase_name: str
 
-def run_mininet(config: FinalConfig):
+def run_mininet(config: FinalConfig, iteration):
 	topo = Topo()
 	server_s = topo.addHost('server')
 	client_s = topo.addHost('client')
@@ -37,6 +41,8 @@ def run_mininet(config: FinalConfig):
 	link1 = topo.addLink(client_s, switch, loss=config.net_config.loss, bandwidth=config.net_config.bandwidth, delay=config.net_config.delay)
 	link2 = topo.addLink(server_s, switch)
 	info('topology configured\n')
+	info(f'running testcase: loss={config.net_config.loss}, delay={config.net_config.delay}, bandwidth={config.net_config.bandwidth}\n')
+	info(f'iteration {iteration}\n')
 	
 	net = Mininet(topo=topo, waitConnected=True)
 	net.start()
@@ -56,6 +62,14 @@ def run_mininet(config: FinalConfig):
 	for host, line in pmonitor( {client: pclient} ):
 		if host:
 			info( "<%s>: %s" % ( host.name, line ) )
+			if str(line).startswith('client Starting new connection to'):
+				words = str(line).split()
+				connID = words[words.index('version')-1][:-1]
+				info(f'connection id: {connID}\n')
+				with open(index_file, 'a') as file:
+					fecEnabled = 'yes' if config.client_args.count('-fec') > 0 else 'no'
+					file.write(f'{connID} {config.net_config.loss} {config.net_config.delay} {config.net_config.bandwidth} {fecEnabled}\n')
+					file.close()
 
 	# pclient.wait()
 	sleep(1)
@@ -138,7 +152,14 @@ def run_benchmarks():
 	conf = tomllib.load(open('benchmark_config.toml', 'rb'))
 	for testcase, testcase_conf in conf.items():
 		for config in generate_configs(testcase_conf, testcase):
-			run_mininet(config)
+		  for i in range(1, TEST_ITERATIONS+1):
+			  run_mininet(config, i)
 
 setLogLevel( 'info' )
+
+# clear index file
+with open(index_file, 'w') as f:
+  f.write('')
+  f.close()
+
 run_benchmarks()

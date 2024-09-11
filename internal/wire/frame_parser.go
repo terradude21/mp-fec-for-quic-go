@@ -97,7 +97,7 @@ func (p *FrameParser) parseNext(b []byte, encLevel protocol.EncryptionLevel, v p
 			}
 		}
 		fmt.Printf("LINE 98, %d\n", parsed)
-		fmt.Println(f)
+		// fmt.Println(f)
 		return f, parsed, nil
 	}
 	// fmt.Println("LINE 101, %d", parsed)
