@@ -22,6 +22,8 @@ type packet struct {
 	includedInBytesInFlight bool
 	declaredLost            bool
 	skippedPacket           bool
+
+	shouldNotBeRetransmitted bool
 }
 
 func (p *packet) outstanding() bool {
@@ -43,6 +45,7 @@ func getPacket() *packet {
 	p.includedInBytesInFlight = false
 	p.declaredLost = false
 	p.skippedPacket = false
+	p.shouldNotBeRetransmitted = false
 	return p
 }
 

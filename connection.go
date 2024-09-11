@@ -1378,7 +1378,7 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 			pns, err := s.fecFrameworkSender.HandleRecoveredFrame(frame)
 			if err == nil {
 				s.logger.Debugf("packets have been recovered: %+v", pns)
-				// err = s.sentPacketHandler.PacketRecovered(pns)
+				err = s.sentPacketHandler.PacketRecovered(pns)
 			}
 		}
 	default:

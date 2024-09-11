@@ -18,6 +18,7 @@ type SentPacketHandler interface {
 	DropPackets(protocol.EncryptionLevel)
 	ResetForRetry(rcvTime time.Time) error
 	SetHandshakeConfirmed()
+	PacketRecovered([]protocol.PacketNumber) error
 
 	// The SendMode determines if and what kind of packets can be sent.
 	SendMode(now time.Time) SendMode
