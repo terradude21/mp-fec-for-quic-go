@@ -7,4 +7,4 @@ bandwidth = 10
 fec = [true, false]
 [testcase1.server]
 [testcase1.client]
-url = "/demo/blob?size=10000"
+url = "/demo/blob?size=10000000"

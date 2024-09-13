@@ -167,17 +167,15 @@ func setupHandler(www string, trace bool) http.Handler {
 
 	mux.HandleFunc("/demo/blob", func(w http.ResponseWriter, r *http.Request) {
 		var size int64
-		var i int64
+		// var i int64
 		size, err := strconv.ParseInt(r.URL.Query().Get("size"), 10, 64)
 		if err != nil {
 			utils.DefaultLogger.Errorf("Error parsing int: %#v", err)
 		}
-		for ; i < size; i++ {
-			data := make([]byte, 1)
+		data := make([]byte, size)
 			// todo: seed
-			_, _ = rand.Read(data)
-			w.Write(data)
-		}
+		_, _ = rand.Read(data)
+		w.Write(data)
 		// shutdown_server()
 	})
 

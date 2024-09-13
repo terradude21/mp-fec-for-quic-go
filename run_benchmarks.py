@@ -16,7 +16,7 @@ DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True,
 DEFAULT_SERVER_ARGS = {'s': True}
 DEFAULT_CLIENT_ARGS = {}
 
-TEST_ITERATIONS = 5
+TEST_ITERATIONS = 1
 
 index_file = 'index.txt'
 
@@ -58,10 +58,12 @@ def run_mininet(config: FinalConfig, iteration):
 	pclient = client.popen(*config.client_args, stderr=STDOUT)
 	info(f'processes started\n{config.server_args=}\n{config.client_args=}\n')
 
-	# for host, line in pmonitor( {client: pclient, server:pserver} ):
-	for host, line in pmonitor( {client: pclient} ):
+	for host, line in pmonitor( {client: pclient, server:pserver} ):
+	# for host, line in pmonitor( {client: pclient} ):
+	# for host, line in pmonitor( {server:pserver} ):
 		if host:
 			info( "<%s>: %s" % ( host.name, line ) )
+		
 			if str(line).startswith('client Starting new connection to'):
 				words = str(line).split()
 				connID = words[words.index('version')-1][:-1]
@@ -70,10 +72,20 @@ def run_mininet(config: FinalConfig, iteration):
 					fecEnabled = 'yes' if config.client_args.count('-fec') > 0 else 'no'
 					file.write(f'{connID} {config.net_config.loss} {config.net_config.delay} {config.net_config.bandwidth} {fecEnabled}\n')
 					file.close()
+					
+			if str(line).startswith('client Closing connection with error'):
+			  sleep(5)
+			  info('before server terminate\n')
+			  pserver.terminate()
+			  info('after server terminate\n')
 
 	# pclient.wait()
-	sleep(1)
-	pserver.terminate()
+	# sleep(1)
+	# info('before client terminate\n')
+	# pclient.terminate()
+	# info('after client terminate\n')
+	# pserver.terminate()
+	# info('after server terminate')
 
 
 	net.stop()
