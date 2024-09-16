@@ -16,7 +16,7 @@ DEFAULT_COMMON_ARGS = {'executable': './benchmark', 'insecure': True, 'q': True,
 DEFAULT_SERVER_ARGS = {'s': True}
 DEFAULT_CLIENT_ARGS = {}
 
-TEST_ITERATIONS = 1
+TEST_ITERATIONS = 5
 
 index_file = 'index.txt'
 
@@ -160,12 +160,11 @@ def generate_configs(toml_config, name):
 
 
 
-def run_benchmarks():
+def run_benchmarks(i):
 	conf = tomllib.load(open('benchmark_config.toml', 'rb'))
 	for testcase, testcase_conf in conf.items():
 		for config in generate_configs(testcase_conf, testcase):
-		  for i in range(1, TEST_ITERATIONS+1):
-			  run_mininet(config, i)
+		  run_mininet(config, i)
 
 setLogLevel( 'info' )
 
@@ -174,4 +173,6 @@ with open(index_file, 'w') as f:
   f.write('')
   f.close()
 
-run_benchmarks()
+for i in range(1, TEST_ITERATIONS+1):
+  run_benchmarks(i)
+  
