@@ -279,7 +279,9 @@ func newRecoveredPacketsBuffer(maxSize int) *recoveredPacketsBuffer {
 }
 
 func (f *recoveredPacketsBuffer) addPacket(packet *fec.RecoveredPacket) {
-	f.buffer[f.start+f.size] = packet
+	if f.start+f.size < f.maxSize {
+		f.buffer[f.start+f.size] = packet
+	}
 	if f.size < f.maxSize {
 		f.size++
 	} else {

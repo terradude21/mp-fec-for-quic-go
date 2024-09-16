@@ -531,10 +531,61 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	pn, pnLen := p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 	connID := p.getDestConnID()
 	hdrLen := wire.ShortHeaderLen(connID, pnLen)
-	pl := p.maybeGetShortHeaderPacket(sealer, hdrLen, maxPacketSize, onlyAck, true, v)
+
+	var fpidFrame *wire.FECSrcFPIFrame
+	var size protocol.ByteCount
+
+	if p.fecFrameworkSender != nil {
+		// fmt.Println("WE ARE DOING FEC STUFF")
+		fpidFrame = &wire.FECSrcFPIFrame{
+			SourceFECPayloadID: p.fecFrameworkSender.GetNextFPID(),
+		}
+		size += fpidFrame.Length(p.version)
+	}
+
+	pl := p.maybeGetShortHeaderPacket(sealer, hdrLen, maxPacketSize-size, onlyAck, true, v)
 	if pl.length == 0 {
 		return shortHeaderPacket{}, errNothingToPack
 	}
+
+	if p.fecFrameworkSender != nil && fpidFrame != nil {
+		framesToProtect := make([]wire.Frame, 0, len(pl.frames)+1)
+		for _, f := range pl.frames {
+			framesToProtect = append(framesToProtect, f.Frame)
+		}
+		payloadToProtect, err := fec.PreparePayloadForEncoding(pn, framesToProtect, p.fecFrameworkSender, p.version)
+		if err != nil {
+			return shortHeaderPacket{}, err
+		}
+		// only protect if there are bytes to protect
+		if len(payloadToProtect.Bytes()) != 0 {
+			fmt.Println("!!! Protecting Payload !!!")
+			id, err := p.fecFrameworkSender.ProtectPayload(pn, payloadToProtect)
+			if err != nil {
+				return shortHeaderPacket{}, err
+			}
+			if id != fpidFrame.SourceFECPayloadID {
+				panic(fmt.Sprintf("wrong id: %+v vs %+v", id, fpidFrame.SourceFECPayloadID))
+			}
+			// add the id to the packet: we have the remaining space, as we decreased maxSize for this. We add it to the
+			// beginning of the packet to avoid interferences with stream frames without length
+			// currently not very efficient
+			newWireFrames := make([]wire.Frame, 0, len(pl.frames)+1)
+			newWireFrames = append(newWireFrames, fpidFrame)
+			pl.length += fpidFrame.Length(p.version)
+			newWireFrames = append(newWireFrames, framesToProtect...)
+			newFrames := make([]ackhandler.Frame, 0, len(pl.frames)+1)
+			for i, f := range newWireFrames {
+				if i == 0 {
+					newFrames = append(newFrames, ackhandler.Frame{Frame: f})
+				} else {
+					newFrames = append(newFrames, ackhandler.Frame{Frame: f, Handler: pl.frames[i-1].Handler})
+				}
+			}
+			pl.frames = newFrames
+		}
+	}
+	
 	kp := sealer.KeyPhase()
 
 	return p.appendShortHeaderPacket(buf, connID, pn, pnLen, kp, pl, 0, maxPacketSize, sealer, false, v)
